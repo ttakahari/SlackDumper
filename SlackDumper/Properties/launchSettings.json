@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SlackDumper": {
+      "commandName": "Project",
+      "commandLineArgs": "-t xoxp-307462770080-331854230387-552213629925-0b0905873381dd5eda77d1b32273e56b -o C:\\SlackDumper"
+    }
+  }
+}
