@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using SlackDumper.Extensions;
 using SlackDumper.Models;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,7 +16,6 @@ namespace SlackDumper
     {
         private static Arguments _arguments;
         private static HttpClient _client;
-        private static JsonSerializerSettings _settings;
 
         static async Task Main(string[] args)
         {
@@ -28,10 +28,11 @@ namespace SlackDumper
 
             _arguments = ((Parsed<Arguments>)parsed).Value;
             _client = new HttpClient();
-            _settings = new JsonSerializerSettings
+
+            if (string.IsNullOrEmpty(_arguments.OutputPath))
             {
-                Formatting = Formatting.Indented
-            };
+                _arguments.OutputPath = Directory.GetCurrentDirectory();
+            }
 
             if (!Directory.Exists(_arguments.OutputPath))
             {
@@ -73,6 +74,15 @@ namespace SlackDumper
                 }
 
                 queries["cursor"] = response.response_metadata.next_cursor;
+            }
+
+            if (_arguments.Channles.Any())
+            {
+                var targetChannels = _arguments.Channles.ToHashSet();
+
+                channels = channels
+                    .Where(x => targetChannels.Contains(x.name))
+                    .ToList();
             }
 
             return channels.ToArray();

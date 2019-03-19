@@ -11,7 +11,7 @@ namespace SlackDumper.Models
         [Option('c', "channles", Required = false, Separator = ',', HelpText = "Output target channels.")]
         public IEnumerable<string> Channles { get; set; }
 
-        [Option('o', "output", Required = false, Default = "/")]
+        [Option('o', "output", Required = false)]
         public string OutputPath { get; set; }
     }
 }
