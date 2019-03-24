@@ -16,11 +16,9 @@ namespace SlackDumper
         private static Arguments _arguments;
         private static HttpClient _client;
 
-        private static Member[] _members;
-        private static Channel[] _channels;
+        private static IReadOnlyDictionary<string, object>[] _members;
+        private static IReadOnlyDictionary<string, object>[] _channels;
         private static ILookup<string, string> _channelMembers;
-        private static IReadOnlyDictionary<string, string> _userNamesById;
-        private static IReadOnlyDictionary<string, string> _userIdsByName;
 
         private static DateTime _unixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -94,7 +92,7 @@ namespace SlackDumper
                 var conversationsList = JsonConvert.DeserializeObject<ConversationsList>(json);
                 
                 _channels = _arguments.Channles.Any()
-                    ? conversationsList.channels.Where(x => _arguments.Channles.Contains(x.name)).ToArray()
+                    ? conversationsList.channels.Where(x => _arguments.Channles.Contains((string)x["name"])).ToArray()
                     : conversationsList.channels;
             }
 
@@ -108,10 +106,10 @@ namespace SlackDumper
 
                 foreach (var channel in _channels)
                 {
-                    var json = await _client.GetStringAsync($@"https://slack.com/api/conversations.members?token={_arguments.Token}&channel={channel.id}");
+                    var json = await _client.GetStringAsync($@"https://slack.com/api/conversations.members?token={_arguments.Token}&channel={(string)channel["id"]}");
                     var conversationMembers = JsonConvert.DeserializeObject<ConversationsMembers>(json);
 
-                    channelMembers.Add(channel.id, conversationMembers.members);
+                    channelMembers.Add((string)channel["id"], conversationMembers.members);
 
                     await Task.Delay(100);
                 }
@@ -120,35 +118,13 @@ namespace SlackDumper
                     .SelectMany(x => x.Value.Select(y => (key:x.Key, value:y)))
                     .ToLookup(x => x.key, x => x.value);
             }
-
-            _userNamesById = _members.ToDictionary(x => x.id, x => x.name);
-            _userIdsByName = _members.ToDictionary(x => x.name, x => x.id);
         }
 
         private static async Task DumpUsers()
         {
             Console.WriteLine($"Dumping users.");
 
-            var targets = _members
-                .Select(x => new
-                {
-                    x.id,
-                    x.team_id,
-                    x.name,
-                    x.deleted,
-                    x.profile,
-                    x.is_admin,
-                    x.is_owner,
-                    x.is_primary_owner,
-                    x.is_restricted,
-                    x.is_ultra_restricted,
-                    x.is_bot,
-                    x.is_app_user,
-                    x.updated
-                })
-                .ToArray();
-
-            var json = JsonConvert.SerializeObject(targets, Formatting.Indented);
+            var json = JsonConvert.SerializeObject(_members, Formatting.Indented);
 
             using (var memory = new MemoryStream(Encoding.UTF8.GetBytes(json)))
             using (var file = File.Create(Path.Combine(_arguments.OutputPath, "users.json")))
@@ -161,22 +137,7 @@ namespace SlackDumper
         {
             Console.WriteLine($"Dumping channels.");
 
-            var targets = _channels
-                .Select(x => new
-                {
-                    x.id,
-                    x.name,
-                    x.created,
-                    x.creator,
-                    x.is_archived,
-                    x.is_general,
-                    members = _channelMembers[x.id],
-                    x.topic,
-                    x.purpose
-                })
-                .ToArray();
-
-            var json = JsonConvert.SerializeObject(targets, Formatting.Indented);
+            var json = JsonConvert.SerializeObject(_channels, Formatting.Indented);
 
             using (var memory = new MemoryStream(Encoding.UTF8.GetBytes(json)))
             using (var file = File.Create(Path.Combine(_arguments.OutputPath, "channels.json")))
@@ -189,13 +150,13 @@ namespace SlackDumper
         {
             foreach (var channel in _channels)
             {
-                Console.WriteLine($"Fetching {channel.name}.");
+                Console.WriteLine($"Fetching {(string)channel["name"]}.");
 
-                var messages = await GetHistory(channel.id);
+                var messages = await GetHistory((string)channel["id"]);
 
                 if (messages.Any())
                 {
-                    var outputPath = Path.Combine(_arguments.OutputPath, channel.name);
+                    var outputPath = Path.Combine(_arguments.OutputPath, (string)channel["name"]);
 
                     if (!Directory.Exists(outputPath))
                     {
@@ -207,9 +168,9 @@ namespace SlackDumper
             }
         }
 
-        private static async Task<Message[]> GetHistory(string id)
+        private static async Task<IReadOnlyDictionary<string, object>[]> GetHistory(string id)
         {
-            var messages = new List<Message>();
+            var messages = new List<IReadOnlyDictionary<string, object>>();
             var cursor = "";
 
             while (true)
@@ -234,9 +195,9 @@ namespace SlackDumper
             return messages.ToArray();
         }
 
-        private static async Task DumpMessages(string outputPath, Message[] messages)
+        private static async Task DumpMessages(string outputPath, IReadOnlyDictionary<string, object>[] messages)
         {
-            async Task writeFile(string outputFilePath, Message[] targetMessages)
+            async Task writeFile(string outputFilePath, IReadOnlyDictionary<string, object>[] targetMessages)
             {
                 var json = JsonConvert.SerializeObject(targetMessages, Formatting.Indented);
 
@@ -248,11 +209,11 @@ namespace SlackDumper
             }
 
             var currentFileDate = "";
-            var currentMessages = new List<Message>();
+            var currentMessages = new List<IReadOnlyDictionary<string, object>>();
 
             foreach (var message in messages)
             {
-                var timestamp = _unixEpoch.Add(TimeSpan.FromSeconds(double.Parse(message.ts)));
+                var timestamp = _unixEpoch.Add(TimeSpan.FromSeconds(double.Parse((string)message["ts"])));
                 var fileDate = timestamp.ToString("yyyy-MM-dd");
 
                 if (string.IsNullOrEmpty(currentFileDate))
