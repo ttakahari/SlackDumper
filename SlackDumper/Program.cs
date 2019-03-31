@@ -192,7 +192,37 @@ namespace SlackDumper
                 cursor = conversationsHistory.response_metadata.next_cursor;
             }
 
-            return messages.ToArray();
+            cursor = "";
+
+            // Reply
+            foreach (var message in messages.Where(x => x.ContainsKey("replies")).ToArray())
+            {
+                while (true)
+                {
+                    var json = string.IsNullOrEmpty(cursor)
+                        ? await _client.GetStringAsync($@"https://slack.com/api/conversations.replies?token={_arguments.Token}&channel={id}&ts={message["ts"]}&limit=1000")
+                        : await _client.GetStringAsync($@"https://slack.com/api/conversations.replies?token={_arguments.Token}&channel={id}&ts={message["ts"]}&cursor={cursor}&limit=1000");
+                    var conversationsHistory = JsonConvert.DeserializeObject<ConversationsReplies>(json);
+
+                    if (conversationsHistory.messages.Any())
+                    {
+                        messages.AddRange(conversationsHistory.messages.Where(x => !x.ContainsKey("replies")));
+                    }
+
+                    if (!conversationsHistory.has_more)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(1000);
+                }
+
+                await Task.Delay(1000);
+            }
+
+            return messages
+                .OrderBy(x => double.Parse((string)x["ts"]))
+                .ToArray();
         }
 
         private static async Task DumpMessages(string outputPath, IReadOnlyDictionary<string, object>[] messages)
