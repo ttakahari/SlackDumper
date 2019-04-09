@@ -76,7 +76,7 @@ namespace SlackDumper
             {
                 Console.WriteLine("Getting users.");
 
-                var json = await _client.GetStringAsync($@"https://slack.com/api/users.list?token={_arguments.Token}");
+                var json = await _client.GetStringAsync($@"https://slack.com/api/users.list?token={_arguments.Token}&limit=1000");
                 var usersList = JsonConvert.DeserializeObject<UsersList>(json);
 
                 _members = usersList.members;
@@ -88,7 +88,7 @@ namespace SlackDumper
             {
                 Console.WriteLine("Getting channels.");
 
-                var json = await _client.GetStringAsync($@"https://slack.com/api/conversations.list?token={_arguments.Token}&types=public_channel,private_channel");
+                var json = await _client.GetStringAsync($@"https://slack.com/api/conversations.list?token={_arguments.Token}&types=public_channel,private_channel&limit=1000");
                 var conversationsList = JsonConvert.DeserializeObject<ConversationsList>(json);
                 
                 _channels = _arguments.Channles.Any()
