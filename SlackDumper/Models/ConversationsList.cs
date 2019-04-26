@@ -6,6 +6,7 @@ namespace SlackDumper.Models
     {
         public bool ok { get; set; }
         public IReadOnlyDictionary<string, object>[] channels { get; set; }
+        public IReadOnlyDictionary<string, object>[] groups { get; set; }
         public ResponseMetadata response_metadata { get; set; }
     }
 }

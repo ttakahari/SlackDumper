@@ -88,12 +88,53 @@ namespace SlackDumper
             {
                 Console.WriteLine("Getting channels.");
 
-                var json = await _client.GetStringAsync($@"https://slack.com/api/conversations.list?token={_arguments.Token}&types=public_channel,private_channel");
-                var conversationsList = JsonConvert.DeserializeObject<ConversationsList>(json);
-                
+                var conversations = await _client.GetStringAsync($@"https://slack.com/api/conversations.list?token={_arguments.Token}&types=public_channel,private_channel,mpim,im");
+                var channels = await _client.GetStringAsync($@"https://slack.com/api/channels.list?token={_arguments.Token}&types=public_channel,private_channel,mpim,im");
+                var groups = await _client.GetStringAsync($@"https://slack.com/api/groups.list?token={_arguments.Token}&types=public_channel,private_channel,mpim,im");
+
+                var conversationsList = JsonConvert.DeserializeObject<ConversationsList>(conversations);
+                var channelsList = JsonConvert.DeserializeObject<ConversationsList>(channels);
+                var groupsList = JsonConvert.DeserializeObject<ConversationsList>(groups);
+
+                var names = conversationsList.channels
+                    .Select(x => (string)x["name"])
+                    .Concat(channelsList.channels
+                        .Select(x => (string)x["name"]))
+                    .Concat(groupsList.groups
+                        .Select(x => (string)x["name"]))
+                    .Distinct()
+                    .OrderBy(x => x)
+                    .ToArray();
+
+                var list = new List<IReadOnlyDictionary<string, object>>();
+
+                foreach (var name in names)
+                {
+                    var conversation = conversationsList.channels.FirstOrDefault(x => (string)x["name"] == name);
+
+                    if (conversation != null)
+                    {
+                        list.Add(conversation);
+                    }
+
+                    var channel = channelsList.channels.FirstOrDefault(x => (string)x["name"] == name);
+
+                    if (channel != null)
+                    {
+                        list.Add(channel);
+                    }
+
+                    var group = groupsList.groups.FirstOrDefault(x => (string)x["name"] == name);
+
+                    if (group != null)
+                    {
+                        list.Add(group);
+                    }
+                }
+
                 _channels = _arguments.Channles.Any()
-                    ? conversationsList.channels.Where(x => _arguments.Channles.Contains((string)x["name"])).ToArray()
-                    : conversationsList.channels;
+                    ? list.Where(x => _arguments.Channles.Contains((string)x["name"])).ToArray()
+                    : list.ToArray();
             }
 
             await Task.Delay(100);
